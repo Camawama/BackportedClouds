@@ -1,0 +1,4 @@
+{
+  "options.backportedclouds.cloudRenderDistance": "Cloud Distance",
+  "options.backportedclouds.cloudRenderDistance.tooltip": "How far away clouds are rendered (in chunks)."
+}
