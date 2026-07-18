@@ -1,5 +1,6 @@
 package net.camacraft.backportedclouds.mixins;
 
+import net.camacraft.backportedclouds.BackportedClouds;
 import net.camacraft.backportedclouds.Config;
 import net.minecraft.client.OptionInstance;
 import net.minecraft.client.Options;
@@ -22,27 +23,22 @@ import java.util.List;
 public abstract class VideoSettingsScreenMixin extends OptionsSubScreen {
 
     @Unique
-    private int backported__transientCloudDistance;
+    private int backported$transientCloudDistance;
 
     public VideoSettingsScreenMixin(Screen parent, Options options, Component title) {
         super(parent, options, title);
     }
 
-    @Unique
-    private boolean backported__isCompatMode() {
-        return net.minecraftforge.fml.ModList.get().isLoaded("embeddium") || net.minecraftforge.fml.ModList.get().isLoaded("rubidium") || net.minecraftforge.fml.ModList.get().isLoaded("oculus");
-    }
-
     @Inject(method = "init", at = @At("HEAD"))
-    private void backported__onInitHead(CallbackInfo ci) {
-        if (!backported__isCompatMode()) {
-            this.backported__transientCloudDistance = Config.COMMON.cloudRenderDistance.get();
+    private void backported$onInitHead(CallbackInfo ci) {
+        if (!BackportedClouds.sodiumCloudsActive()) {
+            this.backported$transientCloudDistance = Config.CLIENT.cloudRenderDistance.get();
         }
     }
 
     @ModifyArg(method = "init", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/components/OptionsList;addSmall([Lnet/minecraft/client/OptionInstance;)V"))
-    private OptionInstance<?>[] backported__modifyOptions(OptionInstance<?>[] originalOptions) {
-        if (backported__isCompatMode()) {
+    private OptionInstance<?>[] backported$modifyOptions(OptionInstance<?>[] originalOptions) {
+        if (BackportedClouds.sodiumCloudsActive()) {
             return originalOptions;
         }
 
@@ -56,32 +52,34 @@ public abstract class VideoSettingsScreenMixin extends OptionsSubScreen {
             }
         }
 
-        if (cloudStatusIndex != -1) {
-            OptionInstance<Integer> cloudRenderDistanceOption = new OptionInstance<>(
-                    "options.backportedclouds.cloudRenderDistance",
-                    OptionInstance.cachedConstantTooltip(Component.translatable("options.backportedclouds.cloudRenderDistance.tooltip")),
-                    (caption, value) -> Options.genericValueLabel(caption, Component.translatable("options.chunks", value)),
-                    new OptionInstance.IntRange(2, 128),
-                    this.backported__transientCloudDistance,
-                    (value) -> this.backported__transientCloudDistance = value
-            );
+        OptionInstance<Integer> cloudRenderDistanceOption = new OptionInstance<>(
+                "options.backportedclouds.cloudRenderDistance",
+                OptionInstance.cachedConstantTooltip(Component.translatable("options.backportedclouds.cloudRenderDistance.tooltip")),
+                (caption, value) -> Options.genericValueLabel(caption, Component.translatable("options.chunks", value)),
+                new OptionInstance.IntRange(2, 128),
+                this.backported$transientCloudDistance,
+                (value) -> this.backported$transientCloudDistance = value
+        );
 
-            // Calculate the index for the start of the next row
-            int insertIndex = cloudStatusIndex - (cloudStatusIndex % 2) + 2;
-
-            // Add the new option on the left and a null on the right for an empty slot
+        // OptionsList.addSmall lays the array out in rows of two, so the option is inserted
+        // at a row boundary with a null right-hand slot. If another mod left the array
+        // odd-length or removed the clouds option, fall back to appending at the end.
+        if (cloudStatusIndex != -1 && optionsList.size() % 2 == 0) {
+            int insertIndex = Math.min(cloudStatusIndex - (cloudStatusIndex % 2) + 2, optionsList.size());
             optionsList.add(insertIndex, cloudRenderDistanceOption);
             optionsList.add(insertIndex + 1, null);
+        } else {
+            optionsList.add(cloudRenderDistanceOption);
         }
 
         return optionsList.toArray(new OptionInstance[0]);
     }
 
     @Inject(method = "removed", at = @At("HEAD"))
-    private void backported__onRemoved(CallbackInfo ci) {
-        if (!backported__isCompatMode()) {
-            if (Config.COMMON.cloudRenderDistance.get() != this.backported__transientCloudDistance) {
-                Config.COMMON.cloudRenderDistance.set(this.backported__transientCloudDistance);
+    private void backported$onRemoved(CallbackInfo ci) {
+        if (!BackportedClouds.sodiumCloudsActive()) {
+            if (Config.CLIENT.cloudRenderDistance.get() != this.backported$transientCloudDistance) {
+                Config.CLIENT.cloudRenderDistance.set(this.backported$transientCloudDistance);
             }
         }
     }

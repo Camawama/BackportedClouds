@@ -74,8 +74,8 @@ dependencies {
     minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
 
-    compileOnly fg.deobf("curse.maven:embeddium-908741:5681725")
-    implementation fg.deobf("curse.maven:embeddium-908741:5681725") // Use this for local testing if needed
+    implementation fg.deobf("curse.maven:embeddium-908741:5681725")
+    runtimeOnly fg.deobf("curse.maven:rubidium-extra-654373:6101745")
 }
 
 mixin {

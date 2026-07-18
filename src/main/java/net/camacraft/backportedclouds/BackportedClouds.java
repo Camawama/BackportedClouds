@@ -1,23 +1,23 @@
 package net.camacraft.backportedclouds;
 
-import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.eventbus.api.IEventBus;
+import com.mojang.logging.LogUtils;
 import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.config.ModConfig;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
+import org.slf4j.Logger;
 
-// The value here should match an entry in the META-INF/mods.toml file
 @Mod(BackportedClouds.MODID)
 public class BackportedClouds {
     public static final String MODID = "backportedclouds";
+    private static final Logger LOGGER = LogUtils.getLogger();
+
+    private static Boolean sodiumCloudsActive;
 
     public BackportedClouds(FMLJavaModLoadingContext context) {
-        IEventBus modEventBus = context.getModEventBus();
-        modEventBus.addListener(this::onClientSetup);
-        MinecraftForge.EVENT_BUS.register(this);
-        context.registerConfig(ModConfig.Type.CLIENT, Config.COMMON_SPEC);
+        context.getModEventBus().addListener(this::onClientSetup);
+        context.registerConfig(ModConfig.Type.CLIENT, Config.CLIENT_SPEC);
     }
 
     private void onClientSetup(final FMLClientSetupEvent event) {
@@ -25,8 +25,22 @@ public class BackportedClouds {
             try {
                 EmbeddiumCompat.register();
             } catch (NoClassDefFoundError e) {
-                // Ignore if not found
+                LOGGER.warn("Embeddium is installed but its cloud API is unavailable; extended cloud distance will not apply", e);
             }
+        } else if (sodiumCloudsActive()) {
+            LOGGER.warn("A Sodium-based renderer without the Embeddium cloud API is installed; Backported Clouds cannot extend its cloud distance and will stand down");
         }
+    }
+
+    /**
+     * True when a Sodium-derived renderer is installed, meaning it replaces vanilla
+     * cloud rendering and this mod must not touch the vanilla cloud path.
+     */
+    public static boolean sodiumCloudsActive() {
+        if (sodiumCloudsActive == null) {
+            ModList mods = ModList.get();
+            sodiumCloudsActive = mods.isLoaded("embeddium") || mods.isLoaded("rubidium") || mods.isLoaded("oculus");
+        }
+        return sodiumCloudsActive;
     }
 }

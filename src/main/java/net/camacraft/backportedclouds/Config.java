@@ -1,34 +1,34 @@
 package net.camacraft.backportedclouds;
 
 import net.minecraftforge.common.ForgeConfigSpec;
-import net.minecraftforge.fml.common.Mod;
 import org.apache.commons.lang3.tuple.Pair;
 
-@Mod.EventBusSubscriber(modid = BackportedClouds.MODID, bus = Mod.EventBusSubscriber.Bus.MOD)
 public class Config {
-    private static final ForgeConfigSpec.Builder BUILDER = new ForgeConfigSpec.Builder();
-
-    public static final CommonConfig COMMON;
-    public static final ForgeConfigSpec COMMON_SPEC;
+    public static final ClientConfig CLIENT;
+    public static final ForgeConfigSpec CLIENT_SPEC;
 
     static {
-        {
-            final Pair<CommonConfig, ForgeConfigSpec> specPair = new ForgeConfigSpec.Builder().configure(CommonConfig::new);
-            COMMON = specPair.getLeft();
-            COMMON_SPEC = specPair.getRight();
-        }
+        final Pair<ClientConfig, ForgeConfigSpec> specPair = new ForgeConfigSpec.Builder().configure(ClientConfig::new);
+        CLIENT = specPair.getLeft();
+        CLIENT_SPEC = specPair.getRight();
     }
 
-
-    public static class CommonConfig {
+    public static class ClientConfig {
         public final ForgeConfigSpec.DoubleValue cloudDistanceMultiplier;
         public final ForgeConfigSpec.BooleanValue extendFrustum;
         public final ForgeConfigSpec.IntValue cloudRenderDistance;
 
-        public CommonConfig(ForgeConfigSpec.Builder builder) {
-            this.cloudDistanceMultiplier = builder.defineInRange("Cloud distance multiplier", 4.0, 0.1, Float.MAX_VALUE);
-            this.extendFrustum = builder.define("Extend frustum", true);
-            this.cloudRenderDistance = builder.defineInRange("Cloud render distance", 128, 2, 128);
+        // Key names are kept as-is for compatibility with existing config files.
+        public ClientConfig(ForgeConfigSpec.Builder builder) {
+            this.cloudDistanceMultiplier = builder
+                    .comment("Multiplier applied to fog end and the projection far plane while clouds are visible, so distant clouds are not hidden.")
+                    .defineInRange("Cloud distance multiplier", 4.0, 1.0, 16.0);
+            this.extendFrustum = builder
+                    .comment("Extend the projection far plane while clouds are visible so they are not clipped at long distances.")
+                    .define("Extend frustum", true);
+            this.cloudRenderDistance = builder
+                    .comment("How far away clouds are rendered, in chunks.")
+                    .defineInRange("Cloud render distance", 128, 2, 128);
         }
     }
 }
