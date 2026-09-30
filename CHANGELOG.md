@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.2
+
+- Clouds in the Aether now render out to the configured cloud distance. The Aether replaces cloud rendering with its own copy of the vanilla renderer (capped at the vanilla distance); the mod now hands those clouds back to the extended renderer. The Aether's "disable clouds" config option is still respected.
+- The cloud distance setting now also works while an Oculus shader pack is active. Oculus draws shader-pack clouds with its own renderer, which ignored the setting. With shaders the distance is capped to the view range Oculus uses (about 29 chunks at a 16-chunk render distance), and packs that fade out, hide or replace vanilla clouds still decide what you see. The new "Extend clouds with shader packs" config option turns this off.
+
 ## 1.0.1
 
 This update fixes the major lag issues, especially when flying above the clouds or playing in dimensions like the Aether.

@@ -11,7 +11,7 @@ public class EmbeddiumCompat {
                 if (e.getId().matches(org.embeddedt.embeddium.client.gui.options.StandardOptions.Group.DETAILS)) {
                     e.getOptions().add(me.jellysquid.mods.sodium.client.gui.options.OptionImpl.createBuilder(int.class, me.jellysquid.mods.sodium.client.gui.SodiumGameOptionPages.getVanillaOpts())
                             .setName(Component.literal("Cloud Distance"))
-                            .setTooltip(Component.literal("How far away clouds are rendered (in chunks)."))
+                            .setTooltip(Component.literal("How far away clouds are rendered (in chunks). With a shader pack active, the distance is capped to the pack's view range."))
                             .setControl(option -> new me.jellysquid.mods.sodium.client.gui.options.control.SliderControl(option, 2, 128, 1, me.jellysquid.mods.sodium.client.gui.options.control.ControlValueFormatter.translateVariable("options.chunks")))
                             .setBinding((opts, value) -> Config.CLIENT.cloudRenderDistance.set(value), opts -> Config.CLIENT.cloudRenderDistance.get())
                             .build());

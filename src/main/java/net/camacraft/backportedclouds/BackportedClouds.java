@@ -43,4 +43,13 @@ public class BackportedClouds {
         }
         return sodiumCloudsActive;
     }
+
+    /**
+     * True when whichever renderer owns the vanilla cloud path applies the configured
+     * distance: this mod's own renderer, or Embeddium via its cloud API. False for
+     * Sodium ports without that API, where the distance cannot be extended.
+     */
+    public static boolean cloudDistanceExtended() {
+        return !sodiumCloudsActive() || ModList.get().isLoaded("embeddium");
+    }
 }

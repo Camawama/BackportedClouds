@@ -17,6 +17,7 @@ public class Config {
         public final ForgeConfigSpec.DoubleValue cloudDistanceMultiplier;
         public final ForgeConfigSpec.BooleanValue extendFrustum;
         public final ForgeConfigSpec.IntValue cloudRenderDistance;
+        public final ForgeConfigSpec.BooleanValue extendShaderPackClouds;
 
         // Key names are kept as-is for compatibility with existing config files.
         public ClientConfig(ForgeConfigSpec.Builder builder) {
@@ -29,6 +30,9 @@ public class Config {
             this.cloudRenderDistance = builder
                     .comment("How far away clouds are rendered, in chunks.")
                     .defineInRange("Cloud render distance", 128, 2, 128);
+            this.extendShaderPackClouds = builder
+                    .comment("Apply the cloud render distance while an Oculus shader pack is active. Oculus shortens the view range with shader packs, so the distance is capped to keep clouds inside it, and many packs fade out or replace vanilla clouds themselves. Turn off to use Oculus's default cloud distance with shader packs.")
+                    .define("Extend clouds with shader packs", true);
         }
     }
 }
