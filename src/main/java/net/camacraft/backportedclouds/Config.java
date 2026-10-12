@@ -18,6 +18,7 @@ public class Config {
         public final ForgeConfigSpec.BooleanValue extendFrustum;
         public final ForgeConfigSpec.IntValue cloudRenderDistance;
         public final ForgeConfigSpec.BooleanValue extendShaderPackClouds;
+        public final ForgeConfigSpec.BooleanValue keepCloudsAboveGenesisCeiling;
 
         // Key names are kept as-is for compatibility with existing config files.
         public ClientConfig(ForgeConfigSpec.Builder builder) {
@@ -33,6 +34,9 @@ public class Config {
             this.extendShaderPackClouds = builder
                     .comment("Apply the cloud render distance while an Oculus shader pack is active. Oculus shortens the view range with shader packs, so the distance is capped to keep clouds inside it, and many packs fade out or replace vanilla clouds themselves. Turn off to use Oculus's default cloud distance with shader packs.")
                     .define("Extend clouds with shader packs", true);
+            this.keepCloudsAboveGenesisCeiling = builder
+                    .comment("VS Genesis hides the clouds once you are above y 500 in its planet dimensions (the overworld included), so they vanish all at once when you fly up past it. On: the clouds stay in view from above, at any height. Off: Genesis decides. Clouds still go where a planet's air is too thin for them.")
+                    .define("Keep clouds above the VS Genesis ceiling", true);
         }
     }
 }

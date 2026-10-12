@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.3
+
+- Clouds no longer vanish when you fly above y 500 with VS Genesis. Genesis hides the clouds of its planet dimensions (the overworld included) once the camera is above y 500, all at once, as part of its sky turning to space. The clouds below now stay in view from any height. Genesis still leaves clouds out where a planet's air is too thin for them. The new "Keep clouds above the VS Genesis ceiling" config option (on) turns this off.
+- With More Weathers on Camafy 0.1.36, the clouds over a storm are darkened where the storm is (Camafy draws that into the cloud shader, this mod's clouds and Embeddium's alike), so a storm shows from as far as the clouds reach.
+
 ## 1.0.2
 
 - Clouds in the Aether now render out to the configured cloud distance. The Aether replaces cloud rendering with its own copy of the vanilla renderer (capped at the vanilla distance); the mod now hands those clouds back to the extended renderer. The Aether's "disable clouds" config option is still respected.
