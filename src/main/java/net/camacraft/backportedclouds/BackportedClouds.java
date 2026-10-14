@@ -21,6 +21,7 @@ public class BackportedClouds {
     }
 
     private void onClientSetup(final FMLClientSetupEvent event) {
+        net.camacraft.backportedclouds.dh.DhCloudDepth.init();
         if (ModList.get().isLoaded("embeddium")) {
             try {
                 EmbeddiumCompat.register();

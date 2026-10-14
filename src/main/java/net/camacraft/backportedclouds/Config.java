@@ -19,6 +19,7 @@ public class Config {
         public final ForgeConfigSpec.IntValue cloudRenderDistance;
         public final ForgeConfigSpec.BooleanValue extendShaderPackClouds;
         public final ForgeConfigSpec.BooleanValue keepCloudsAboveGenesisCeiling;
+        public final ForgeConfigSpec.BooleanValue hideCloudsBehindLods;
 
         // Key names are kept as-is for compatibility with existing config files.
         public ClientConfig(ForgeConfigSpec.Builder builder) {
@@ -37,6 +38,9 @@ public class Config {
             this.keepCloudsAboveGenesisCeiling = builder
                     .comment("VS Genesis hides the clouds once you are above y 500 in its planet dimensions (the overworld included), so they vanish all at once when you fly up past it. On: the clouds stay in view from above, at any height. Off: Genesis decides. Clouds still go where a planet's air is too thin for them.")
                     .define("Keep clouds above the VS Genesis ceiling", true);
+            this.hideCloudsBehindLods = builder
+                    .comment("With Distant Horizons: clouds are hidden behind LOD terrain that is nearer than them (DH keeps its LODs' depth to itself, so the clouds were drawn on top of distant mountains). Costs one full-screen pass and two depth copies a frame. Not used with an Oculus shader pack.")
+                    .define("Hide clouds behind Distant Horizons LODs", true);
         }
     }
 }
