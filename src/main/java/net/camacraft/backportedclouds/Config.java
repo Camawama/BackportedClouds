@@ -20,6 +20,7 @@ public class Config {
         public final ForgeConfigSpec.BooleanValue extendShaderPackClouds;
         public final ForgeConfigSpec.BooleanValue keepCloudsAboveGenesisCeiling;
         public final ForgeConfigSpec.BooleanValue hideCloudsBehindLods;
+        public final ForgeConfigSpec.BooleanValue keepCloudsSettingWithLods;
 
         // Key names are kept as-is for compatibility with existing config files.
         public ClientConfig(ForgeConfigSpec.Builder builder) {
@@ -41,6 +42,13 @@ public class Config {
             this.hideCloudsBehindLods = builder
                     .comment("With Distant Horizons: clouds are hidden behind LOD terrain that is nearer than them (DH keeps its LODs' depth to itself, so the clouds were drawn on top of distant mountains). Costs one full-screen pass and two depth copies a frame. Not used with an Oculus shader pack.")
                     .define("Hide clouds behind Distant Horizons LODs", true);
+            this.keepCloudsSettingWithLods = builder
+                    .comment("With Distant Horizons: keep the game's Clouds video setting as you set it. DH turns it off (\"Disabling vanilla",
+                            "clouds... to prevent vanilla clouds from rendering on top of Distant Horizons LODs\") every time its renderer",
+                            "starts, with its 'overrideVanillaGraphicsSettings' option on; this mod draws its clouds behind the LODs",
+                            "itself (the option above), so that is no longer needed. DH's other overrides (chunk fade-in, Fabulous",
+                            "graphics) are left to it.")
+                    .define("Keep the Clouds setting with Distant Horizons", true);
         }
     }
 }
