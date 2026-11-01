@@ -16,6 +16,10 @@ import org.joml.Matrix4f;
  * <p>Distant Horizons is optional: this class has no DH types; {@link DhCloudDepthImpl} has, and is only loaded when
  * DH is. Off with an Oculus shader pack (the pack and DH's Iris path draw clouds and LODs their own way) and with the
  * config option "Hide clouds behind Distant Horizons LODs".
+ *
+ * <p>With DH loaded it also makes sure the game's own target is bound before the clouds (1.0.5,
+ * {@link DhCloudDepthImpl#ensureTarget}): DH's passes left the window's framebuffer bound there, and the clouds drawn
+ * into it were overwritten by the game's target, so with DH there were no clouds at all.
  */
 public final class DhCloudDepth {
     private DhCloudDepth() {}
@@ -38,7 +42,15 @@ public final class DhCloudDepth {
 
     /** {@code renderLevel}, just before it draws the clouds with {@code projection}. */
     public static void beforeClouds(Matrix4f projection) {
+        if (!loaded()) return;
+        DhCloudDepthImpl.noteBinding();
+        DhCloudDepthImpl.ensureTarget();
         if (active()) DhCloudDepthImpl.beforeClouds(projection);
+    }
+
+    /** For the pack harness: the framebuffer bound as the last cloud pass began, against the main target's. */
+    public static String lastBinding() {
+        return loaded() ? DhCloudDepthImpl.lastBinding : "no-dh";
     }
 
     /** {@code renderLevel}, just after the clouds. */

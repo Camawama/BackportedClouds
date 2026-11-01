@@ -9,6 +9,8 @@ import com.mojang.blaze3d.vertex.VertexBuffer;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.logging.LogUtils;
 import net.camacraft.backportedclouds.BackportedClouds;
+import net.camacraft.backportedclouds.CloudFade;
+import net.camacraft.backportedclouds.PlanetBelow;
 import net.camacraft.backportedclouds.Config;
 import net.minecraft.client.CloudStatus;
 import net.minecraft.client.Minecraft;
@@ -180,11 +182,19 @@ public abstract class LevelRendererMixin {
         }
 
         RenderSystem.setShader(GameRenderer::getPositionTexColorNormalShader);
-        RenderSystem.setShaderTexture(0, CLOUDS_LOCATION);
+        // this mod's texture, or a resource pack's: vanilla's old one only where neither is (see CloudTexture)
+        RenderSystem.setShaderTexture(0, net.camacraft.backportedclouds.CloudTexture.location());
         FogRenderer.levelFogColor();
         RenderSystem.setShaderColor((float) cloudColor.x, (float) cloudColor.y, (float) cloudColor.z, 1.0F);
+        float oldFogStart = RenderSystem.getShaderFogStart();
         float oldFogEnd = RenderSystem.getShaderFogEnd();
-        RenderSystem.setShaderFogEnd(oldFogEnd * Config.CLIENT.cloudDistanceMultiplier.get().floatValue());
+        boolean fade = CloudFade.active();
+        if (fade) {
+            // the fade's fog (start 0, end the cloud fog distance) in plain air; the frame's own short fog in water, blinded, ...
+            CloudFade.applyFog(this.level, this.minecraft.getCameraEntity());
+        } else {
+            RenderSystem.setShaderFogEnd(oldFogEnd * Config.CLIENT.cloudDistanceMultiplier.get().floatValue());
+        }
 
         poseStack.pushPose();
         poseStack.scale(12.0F, 1.0F, 12.0F);
@@ -202,7 +212,9 @@ public abstract class LevelRendererMixin {
                     RenderSystem.colorMask(true, true, true, true);
                 }
 
-                ShaderInstance shader = RenderSystem.getShader();
+                // vanilla's cloud shader, or this mod's with the fade; another mod's copy of vanilla's stays (Camafy's storm clouds)
+                ShaderInstance shader = CloudFade.vanillaShader(RenderSystem.getShader());
+                PlanetBelow.apply(shader);
                 this.cloudBuffer.drawWithShader(poseStack.last().pose(), projectionMatrix, shader);
             }
 
@@ -210,6 +222,7 @@ public abstract class LevelRendererMixin {
         }
         poseStack.popPose();
 
+        RenderSystem.setShaderFogStart(oldFogStart);
         RenderSystem.setShaderFogEnd(oldFogEnd);
         RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
         RenderSystem.enableCull();

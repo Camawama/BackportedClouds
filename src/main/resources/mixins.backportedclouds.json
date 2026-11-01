@@ -8,10 +8,15 @@
   "client":[
     "AetherSkyRenderEffectsMixin",
     "DhCloudDepthMixin",
+    "DhCloudTextureMixin",
     "DhVanillaCloudsMixin",
+    "EmbeddiumCloudFadeMixin",
+    "EmbeddiumCloudTextureMixin",
     "GenesisCloudCeilingMixin",
+    "GenesisPlanetBelowMixin",
     "GameRendererMixin",
     "LevelRendererMixin",
+    "LevelRendererTicksAccessor",
     "OculusCloudRendererMixin",
     "VideoSettingsScreenMixin"
   ],

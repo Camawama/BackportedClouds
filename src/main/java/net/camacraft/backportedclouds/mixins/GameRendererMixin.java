@@ -1,5 +1,6 @@
 package net.camacraft.backportedclouds.mixins;
 
+import net.camacraft.backportedclouds.CloudFade;
 import net.camacraft.backportedclouds.Config;
 import net.camacraft.backportedclouds.OculusCompat;
 import net.minecraft.client.CloudStatus;
@@ -25,7 +26,9 @@ public abstract class GameRendererMixin {
      * clouds enabled — so menus, the Nether, and clouds-off setups keep vanilla depth
      * precision. Also inactive while an Oculus shader pack is loaded: Oculus sets the far
      * plane itself without calling this method, so mods that still read it should get the
-     * vanilla value, not an extension the real projection does not have.
+     * vanilla value, not an extension the real projection does not have. With the fade toward
+     * the horizon the far plane reaches the cloud range at least, as 1.21.2+'s does
+     * ({@code max(renderDistance * 4, cloudRange * 16)}); without, the multiplier applies.
      */
     @Inject(method = "getDepthFar", at = @At("RETURN"), cancellable = true)
     private void backported$extendDepthFar(CallbackInfoReturnable<Float> cir) {
@@ -45,6 +48,11 @@ public abstract class GameRendererMixin {
         if (OculusCompat.shaderPackInUse()) {
             return;
         }
-        cir.setReturnValue(cir.getReturnValue() * Config.CLIENT.cloudDistanceMultiplier.get().floatValue());
+        float far = cir.getReturnValue();
+        if (CloudFade.active()) {
+            cir.setReturnValue(Math.max(far, CloudFade.rangeBlocks()));
+        } else {
+            cir.setReturnValue(far * Config.CLIENT.cloudDistanceMultiplier.get().floatValue());
+        }
     }
 }

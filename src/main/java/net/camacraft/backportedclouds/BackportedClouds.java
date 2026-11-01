@@ -1,6 +1,8 @@
 package net.camacraft.backportedclouds;
 
 import com.mojang.logging.LogUtils;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.config.ModConfig;
@@ -17,7 +19,15 @@ public class BackportedClouds {
 
     public BackportedClouds(FMLJavaModLoadingContext context) {
         context.getModEventBus().addListener(this::onClientSetup);
+        context.getModEventBus().addListener(CloudFade::registerShaders);
         context.registerConfig(ModConfig.Type.CLIENT, Config.CLIENT_SPEC);
+        // which cloud texture is in use is worked out again after each resource reload (CloudTexture)
+        context.getModEventBus().addListener((net.minecraftforge.client.event.RegisterClientReloadListenersEvent e) ->
+                e.registerReloadListener((net.minecraft.server.packs.resources.ResourceManagerReloadListener) manager -> CloudTexture.invalidate()));
+        // the planet below's record lasts one frame
+        MinecraftForge.EVENT_BUS.addListener((TickEvent.RenderTickEvent e) -> {
+            if (e.phase == TickEvent.Phase.START) PlanetBelow.newFrame();
+        });
     }
 
     private void onClientSetup(final FMLClientSetupEvent event) {

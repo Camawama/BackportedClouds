@@ -78,6 +78,45 @@ final class DhCloudDepthImpl {
         return true;
     }
 
+    /** The framebuffer bound as the clouds are about to be drawn, against the main target's (the harness reads it). */
+    static volatile String lastBinding = "none";
+    private static boolean reboundSaid;
+
+    /**
+     * Before the clouds: the game's own target bound, where vanilla expects it. With Distant Horizons the window's
+     * framebuffer (0) was bound here instead (left by DH's passes earlier in the frame, with Fabulous graphics'
+     * targets still alive after DH switched that setting off), so the clouds were drawn into the window and
+     * overwritten when the game's target was blitted to it: no clouds at all with DH. Vanilla binds the clouds
+     * target itself under Fabulous graphics; otherwise it assumes the main target is still bound.
+     */
+    static void ensureTarget() {
+        Minecraft mc = Minecraft.getInstance();
+        RenderTarget main = mc.getMainRenderTarget();
+        RenderTarget clouds = mc.levelRenderer.getCloudsTarget();
+        RenderTarget expected = Minecraft.useShaderTransparency() && clouds != null ? clouds : main;
+        int bound = GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING);
+        if (bound == expected.frameBufferId) return;
+        expected.bindWrite(true);
+        if (!reboundSaid) {
+            reboundSaid = true;
+            LOGGER.info("Backported Clouds: framebuffer {} was bound before the clouds with Distant Horizons (the game's is {}); the clouds are drawn into the game's from now on",
+                    bound, expected.frameBufferId);
+        }
+    }
+
+    /** Just before the clouds, with or without the depth pass: which framebuffer the clouds will be drawn into. */
+    static void noteBinding() {
+        try {
+            RenderTarget main = Minecraft.getInstance().getMainRenderTarget();
+            RenderTarget clouds = Minecraft.getInstance().levelRenderer.getCloudsTarget();
+            int bound = GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING);
+            lastBinding = "fbo=" + bound + " main=" + main.frameBufferId + " clouds=" + (clouds == null ? "none" : clouds.frameBufferId)
+                    + (bound == main.frameBufferId ? " (main)" : clouds != null && bound == clouds.frameBufferId ? " (clouds target)" : " (NEITHER)");
+        } catch (RuntimeException e) {
+            lastBinding = "unreadable: " + e;
+        }
+    }
+
     static void beforeClouds(Matrix4f cloudProjection) {
         restore = false;
         if (failed) {
