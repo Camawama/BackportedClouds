@@ -23,7 +23,10 @@ public class BackportedClouds {
         context.registerConfig(ModConfig.Type.CLIENT, Config.CLIENT_SPEC);
         // which cloud texture is in use is worked out again after each resource reload (CloudTexture)
         context.getModEventBus().addListener((net.minecraftforge.client.event.RegisterClientReloadListenersEvent e) ->
-                e.registerReloadListener((net.minecraft.server.packs.resources.ResourceManagerReloadListener) manager -> CloudTexture.invalidate()));
+                e.registerReloadListener((net.minecraft.server.packs.resources.ResourceManagerReloadListener) manager -> {
+                    CloudTexture.invalidate();
+                    PlanetCloudWrap.invalidate();
+                }));
         // the planet below's record lasts one frame
         MinecraftForge.EVENT_BUS.addListener((TickEvent.RenderTickEvent e) -> {
             if (e.phase == TickEvent.Phase.START) PlanetBelow.newFrame();

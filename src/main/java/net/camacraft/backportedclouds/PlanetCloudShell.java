@@ -13,6 +13,7 @@ import net.minecraft.client.CloudStatus;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.ShaderInstance;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import org.joml.Matrix4f;
 import org.joml.Quaterniondc;
@@ -47,6 +48,9 @@ import java.nio.FloatBuffer;
  * layer gives way to the other. While the world's clouds hand over the point follows the camera; once they have, it stays,
  * so flying sideways high up the clouds keep to the planet; coming back down it slides back into line at
  * {@link #ALIGN_SPEED}. The other faces show a fixed window of the texture each.
+ *
+ * <p>Clouds are drawn only on planets of the overworld's kind ({@link PlanetBelow#bodyIsOverworldKind}). A planet seen from
+ * afar gets the whole texture ({@link #afterBody}, {@link PlanetCloudWrap}) rather than this layer's windows.
  */
 public final class PlanetCloudShell {
     private static final Logger LOGGER = LogUtils.getLogger();
@@ -56,8 +60,16 @@ public final class PlanetCloudShell {
     private static final int SPLIT = 8;
     /** The world's clouds' opacity. */
     private static final float OPACITY = 0.85F;
+    /** The light a cloud keeps on the night side: the planet's own ambient tenth would make white clouds the brightest thing there. */
+    private static final float NIGHT_LIGHT = 0.035F;
+    /** The wrap's shell against the cube (a planet seen from afar), and the shadows' just over the ground under it. */
+    private static final float WRAP_SHELL = 1.012F, SHADOW_SHELL = 1.002F;
+    /** How dark a cloud's shadow is at its darkest, and how far it lies from the cloud, in half sizes of a face, with the sun low. */
+    private static final float SHADOW_DARK = 0.42F, SHADOW_SHIFT = 0.05F;
+    /** A planet seen under this tangent of its half size is left out: a few pixels at most. */
+    private static final double TOO_SMALL = 0.004;
     /** The faces: normal, then the two axes along the face. */
-    private static final float[][][] FACES = {
+    static final float[][][] FACES = {
             {{0, 1, 0}, {1, 0, 0}, {0, 0, 1}},
             {{0, -1, 0}, {1, 0, 0}, {0, 0, -1}},
             {{1, 0, 0}, {0, 0, 1}, {0, 1, 0}},
@@ -77,23 +89,118 @@ public final class PlanetCloudShell {
     private static long lastNanos;
     private static java.lang.invoke.MethodHandle shaderSupplier;
     private static boolean shaderLooked;
-    private static int draws;
-    private static String lastDraw = "none";
+    private static int draws, wrapDraws;
+    private static String lastDraw = "none", lastWrap = "none";
 
     private PlanetCloudShell() {}
 
     /** Right after Genesis has drawn the planet below: its cloud layer, in the same place and turn, at the same fade. */
-    public static void afterPlanet(PoseStack pose, double x, double y, double z, double halfExtent, Object rotation, float planetAlpha) {
+    public static void afterPlanet(ResourceLocation id, PoseStack pose, double x, double y, double z, double halfExtent, Object rotation, float planetAlpha) {
         try {
             if (planetAlpha <= 0.004F || halfExtent <= 0.0 || !(rotation instanceof Quaterniondc turn)) return;
             if (!Config.CLIENT.planetClouds.get() || OculusCompat.shaderPackInUse()) return;
             Minecraft mc = Minecraft.getInstance();
             if (mc.level == null || mc.options.getCloudsType() == CloudStatus.OFF || Float.isNaN(mc.level.effects().getCloudHeight())) return;
+            if (!PlanetBelow.bodyIsOverworldKind(id)) return;
             draw(mc, pose, x, y, z, halfExtent, turn, planetAlpha);
         } catch (RuntimeException e) {
             LOGGER.warn("Backported Clouds: the clouds on VS Genesis' planet couldn't be drawn ({}); off for this session", e.toString());
             Config.CLIENT.planetClouds.set(false);
         }
+    }
+
+    /**
+     * Right after Genesis has drawn a body that isn't the one under the camera, seen from space or from another world's
+     * sky: on a planet of the overworld's kind ({@link PlanetBelow#bodyIsOverworldKind}), the whole cloud texture
+     * ({@link PlanetCloudWrap}), lit as Genesis lights the planet, with the clouds' shadows on the ground under it. Drawn
+     * before Genesis' glow, which lies over it.
+     */
+    public static void afterBody(ResourceLocation id, PoseStack pose, double x, double y, double z, double halfExtent, Object rotation, float alpha) {
+        try {
+            if (alpha <= 0.004F || halfExtent <= 0.0 || !(rotation instanceof Quaterniondc turn)) return;
+            if (!Config.CLIENT.planetCloudsFromAfar.get() || OculusCompat.shaderPackInUse()) return;
+            Minecraft mc = Minecraft.getInstance();
+            if (mc.level == null || mc.options.getCloudsType() == CloudStatus.OFF) return;
+            if (!PlanetBelow.bodyIsOverworldKind(id)) return;
+            if (halfExtent / Math.max(1.0, Math.sqrt(x * x + y * y + z * z)) < TOO_SMALL) return;
+            drawWrap(mc, id, pose, x, y, z, halfExtent, turn, alpha);
+        } catch (RuntimeException e) {
+            LOGGER.warn("Backported Clouds: the clouds on VS Genesis' planets couldn't be drawn ({}); off for this session", e.toString());
+            Config.CLIENT.planetCloudsFromAfar.set(false);
+        }
+    }
+
+    private static void drawWrap(Minecraft mc, ResourceLocation id, PoseStack pose, double x, double y, double z, double halfExtent, Quaterniondc turn, float bodyAlpha) {
+        ResourceLocation texture = PlanetCloudWrap.texture(mc, id, mc.level.getGameTime() + (double) mc.getFrameTime());
+        if (texture == null) return;
+        // how thick each cloud is, is in the cells' alpha
+        float alpha = Mth.clamp(bodyAlpha, 0F, 1F);
+        float[] light = lightDirection();
+        Quaternionf q = new Quaternionf(turn);
+        Matrix4f m = new Matrix4f(pose.last().pose()).translate((float) x, (float) y, (float) z).rotate(q);
+        Vector3d centre = new Vector3d(x, y, z);
+        // the way to the sun in the planet's own axes, and the clouds' shadows when there is a sun to cast them
+        Vector3f sun = light == null ? null : new Quaternionf(q).conjugate().transform(new Vector3f(-light[0], -light[1], -light[2]));
+        boolean shadows = sun != null && Config.CLIENT.planetCloudShadows.get();
+
+        RenderSystem.setShader(GameRenderer::getPositionTexColorShader);
+        RenderSystem.setShaderTexture(0, texture);
+        RenderSystem.enableBlend();
+        RenderSystem.blendFuncSeparate(GlStateManager.SourceFactor.SRC_ALPHA, GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA,
+                GlStateManager.SourceFactor.ZERO, GlStateManager.DestFactor.ONE);
+        RenderSystem.disableDepthTest();
+        RenderSystem.depthMask(false);
+        RenderSystem.disableCull();
+        BufferBuilder buffer = Tesselator.getInstance().getBuilder();
+        buffer.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX_COLOR);
+        Vector3f n = new Vector3f(), a = new Vector3f(), b = new Vector3f(), p = new Vector3f(), dir = new Vector3f();
+        int faces = 0;
+        float h = (float) (halfExtent * WRAP_SHELL), low = (float) (halfExtent * SHADOW_SHELL);
+        for (int f = 0; f < FACES.length; f++) {
+            n.set(FACES[f][0][0], FACES[f][0][1], FACES[f][0][2]);
+            a.set(FACES[f][1][0], FACES[f][1][1], FACES[f][1][2]);
+            b.set(FACES[f][2][0], FACES[f][2][1], FACES[f][2][2]);
+            Vector3f nw = q.transform(new Vector3f(n));
+            Vector3d faceCentre = new Vector3d(nw.x, nw.y, nw.z).mul(halfExtent).add(centre);
+            if (faceCentre.x * nw.x + faceCentre.y * nw.y + faceCentre.z * nw.z >= 0.0) continue;
+            faces++;
+            // a point is shaded by the cloud sunward of it
+            float shiftA = sun == null ? 0F : a.dot(sun) * SHADOW_SHIFT, shiftB = sun == null ? 0F : b.dot(sun) * SHADOW_SHIFT;
+            for (int pass = shadows ? 0 : 1; pass < 2; pass++) {
+                boolean shadow = pass == 0;
+                for (int i = 0; i < SPLIT; i++) {
+                    for (int j = 0; j < SPLIT; j++) {
+                        float s0 = -1F + 2F * i / SPLIT, s1 = -1F + 2F * (i + 1) / SPLIT;
+                        float t0 = -1F + 2F * j / SPLIT, t1 = -1F + 2F * (j + 1) / SPLIT;
+                        float[][] st = {{s0, t0}, {s1, t0}, {s1, t1}, {s0, t1}};
+                        for (float[] c : st) {
+                            p.set(n).add(a.x * c[0], a.y * c[0], a.z * c[0]).add(b.x * c[1], b.y * c[1], b.z * c[1]);
+                            float size = shadow ? low : h;
+                            float u = PlanetCloudWrap.atlasU(f, shadow ? Mth.clamp(c[0] + shiftA, -1F, 1F) : c[0]);
+                            float v = PlanetCloudWrap.atlasV(f, shadow ? Mth.clamp(c[1] + shiftB, -1F, 1F) : c[1]);
+                            float grey, opacity = alpha;
+                            if (shadow) {
+                                dir.set(p).normalize();
+                                grey = 0F;
+                                opacity = alpha * SHADOW_DARK * Mth.clamp(dir.dot(sun) * 4F, 0F, 1F);
+                            } else {
+                                grey = shadeAt(q, light, p, dir);
+                            }
+                            buffer.vertex(m, p.x * size, p.y * size, p.z * size).uv(u, v).color(grey, grey, grey, opacity).endVertex();
+                        }
+                    }
+                }
+            }
+        }
+        if (faces > 0) BufferUploader.drawWithShader(buffer.end());
+        else buffer.end().release();
+        RenderSystem.enableCull();
+        RenderSystem.depthMask(true);
+        RenderSystem.enableDepthTest();
+        RenderSystem.defaultBlendFunc();
+        RenderSystem.disableBlend();
+        wrapDraws++;
+        lastWrap = String.format(java.util.Locale.ROOT, "%s, %d faces, alpha %.2f, shadows %s, %s", id, faces, alpha, shadows, PlanetCloudWrap.describe());
     }
 
     private static void draw(Minecraft mc, PoseStack pose, double x, double y, double z, double halfExtent, Quaterniondc turn, float planetAlpha) {
@@ -221,17 +328,19 @@ public final class PlanetCloudShell {
     /** One corner {@code p} of a face (on the unit cube): placed on the shell, its texel, and its light as Genesis lights the planet there. */
     private static void corner(BufferBuilder buffer, Matrix4f m, Quaternionf q, float[] light, Vector3f p, Vector3f dir, float h,
                                float u, float v, float alpha) {
-        float shade = 1F;
-        if (light != null) {
-            // Genesis' planet shader: the normal of a sphere through the point, lit by dot(n, -light), eased, with an ambient tenth
-            q.transform(dir.set(p).normalize());
-            float lit = Math.max(0F, -(dir.x * light[0] + dir.y * light[1] + dir.z * light[2]));
-            shade = Mth.clamp(0.1F + 1F - 1F / (lit * lit * 5F + 1F), 0F, 1F);
-        }
+        float shade = shadeAt(q, light, p, dir);
         buffer.vertex(m, p.x * h, p.y * h, p.z * h)
                 .uv(u, v)
                 .color(shade, shade, shade, alpha)
                 .endVertex();
+    }
+
+    /** Genesis' planet shader's light at the point {@code p} of the cube: the normal of a sphere through it, lit by dot(n, -light), eased; a cloud's own night light for the planet's ambient tenth. */
+    private static float shadeAt(Quaternionf q, float[] light, Vector3f p, Vector3f dir) {
+        if (light == null) return 1F;
+        q.transform(dir.set(p).normalize());
+        float lit = Math.max(0F, -(dir.x * light[0] + dir.y * light[1] + dir.z * light[2]));
+        return Mth.clamp(NIGHT_LIGHT + 1F - 1F / (lit * lit * 5F + 1F), 0F, 1F);
     }
 
     /** Genesis' planet shader's light direction this frame (from the star to the body, in the axes the body is drawn in), or null. */
@@ -269,5 +378,15 @@ public final class PlanetCloudShell {
     /** What the last draw was (the harness reads it). */
     public static String lastDraw() {
         return lastDraw;
+    }
+
+    /** How many times a planet's whole wrap was drawn since the game started (the harness reads it). */
+    public static int wrapDraws() {
+        return wrapDraws;
+    }
+
+    /** What the last wrap was (the harness reads it). */
+    public static String lastWrap() {
+        return lastWrap;
     }
 }

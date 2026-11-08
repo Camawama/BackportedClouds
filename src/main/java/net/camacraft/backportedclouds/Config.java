@@ -27,6 +27,8 @@ public class Config {
         public final ForgeConfigSpec.BooleanValue ownTextureOverVanilla;
         public final ForgeConfigSpec.BooleanValue planetClouds;
         public final ForgeConfigSpec.IntValue planetCloudTexels;
+        public final ForgeConfigSpec.BooleanValue planetCloudsFromAfar;
+        public final ForgeConfigSpec.BooleanValue planetCloudShadows;
 
         // Key names are kept as-is for compatibility with existing config files.
         public ClientConfig(ForgeConfigSpec.Builder builder) {
@@ -65,6 +67,14 @@ public class Config {
                     .comment("How many cloud texels span a face of the planet below. 0: as many as make a texel on the planet look as big as",
                             "the world's cloud cell where the two hand over (61 at 8 chunks), so the clouds keep their size through it.")
                     .defineInRange("Cloud texels across a VS Genesis planet face", 0, 0, 256);
+            this.planetCloudsFromAfar = builder
+                    .comment("With VS Genesis: the whole cloud texture wrapped round every planet of the overworld's kind (Earth, and worlds",
+                            "made like it such as Multiworld's overworlds), seen from space or from another world's sky, lit by its own sun.",
+                            "No other planet gets any. Off: planets have no clouds from afar.")
+                    .define("Clouds on VS Genesis planets from afar", true);
+            this.planetCloudShadows = builder
+                    .comment("The clouds of \"Clouds on VS Genesis planets from afar\" cast shadows on the ground under them, on the planet's day side.")
+                    .define("Cloud shadows on VS Genesis planets", true);
             this.ownTextureOverVanilla = builder
                     .comment("Draw the clouds with this mod's 1.21.11 texture even where the resource pack order puts vanilla's old texture on",
                             "top (a pack list in options.txt with 'vanilla' and no 'mod_resources' puts every mod's resources under vanilla's).",

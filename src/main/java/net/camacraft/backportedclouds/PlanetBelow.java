@@ -3,6 +3,7 @@ package net.camacraft.backportedclouds;
 import com.mojang.logging.LogUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.ShaderInstance;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.minecraftforge.client.event.RenderLevelStageEvent;
 import org.slf4j.Logger;
@@ -39,6 +40,13 @@ public final class PlanetBelow {
     private static final float[] NONE = new float[5];
     private static long frame = 1, recordedFrame;
     private static boolean inBelowInvoke, failed, said;
+    /** The body Genesis' planet renderer is on now, below the camera or not. */
+    private static Object body;
+    private static final Map<ResourceLocation, Known> KNOWN = new ConcurrentHashMap<>();
+    private static boolean kindFailed;
+
+    private record Known(Object body, boolean overworldKind) {
+    }
     private static float cx, cy, cz, half, alpha;
 
     private PlanetBelow() {}
@@ -51,6 +59,7 @@ public final class PlanetBelow {
     /** Genesis' planet renderer begins a body: the one the camera stands on is the planet below. */
     public static void invokeStarts(RenderLevelStageEvent event, Object celestial, Object vantage) {
         inBelowInvoke = false;
+        body = celestial;
         if (failed || celestial == null || vantage == null || !vantage.getClass().getName().equals(ON_CELESTIAL)) return;
         try {
             Method celestialOf = CELESTIAL_OF.computeIfAbsent(vantage.getClass(), c -> method(c, "celestial"));
@@ -97,6 +106,49 @@ public final class PlanetBelow {
     /** Genesis' planet renderer is done with the body. */
     public static void invokeEnds() {
         inBelowInvoke = false;
+        body = null;
+    }
+
+    /**
+     * Whether the body being drawn is of the overworld's kind: Earth, or a world made like it (Camafy gives Multiworld's
+     * overworlds and {@code /planet create earthlike} Earth's atmosphere colours, {@code genesis:overworld}, which come to
+     * every client with the body). The only bodies clouds are drawn on: another planet's air is no reason for Earth's
+     * clouds, whatever its density. Read from the body by name, as nothing of Genesis is compiled against; kept per
+     * body id while the body stays the same object.
+     */
+    static boolean bodyIsOverworldKind(ResourceLocation id) {
+        Object now = body;
+        if (now == null || kindFailed) return false;
+        Known known = KNOWN.get(id);
+        if (known != null && known.body() == now) return known.overworldKind();
+        boolean kind = readKind(now);
+        KNOWN.put(id, new Known(now, kind));
+        return kind;
+    }
+
+    private static boolean readKind(Object celestial) {
+        try {
+            Object properties = call(celestial, "properties");
+            Method atmosphere;
+            try {
+                atmosphere = properties.getClass().getMethod("atmosphere");
+            } catch (NoSuchMethodException e) {
+                // a star or a black hole
+                return false;
+            }
+            Object colour = call(atmosphere.invoke(properties), "color");
+            return Boolean.TRUE.equals(call(colour, "isOverworld"));
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            kindFailed = true;
+            LOGGER.warn("Backported Clouds: VS Genesis' atmospheres couldn't be read ({}); no clouds on its planets", e.toString());
+            return false;
+        }
+    }
+
+    private static Object call(Object target, String name) throws ReflectiveOperationException {
+        Method m = target.getClass().getMethod(name);
+        m.setAccessible(true);
+        return m.invoke(target);
     }
 
     /** The body is really drawn: where (from the camera, world axes), how large and how faded. */
