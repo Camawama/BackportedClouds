@@ -1,14 +1,70 @@
-# About
-This mod replaces the cloud texture with the new cloud texture from 1.21.11, makes the clouds render up to 128 chunks, and fades them toward the horizon the way 1.21.6 and later draw them (1.0.5): each cloud's opacity falls with its distance from you, from full overhead to nothing at the cloud render distance, with no tint toward the fog colour, and the far plane reaches that distance. The fade has a config option ("Fade toward the horizon", on); off, the clouds keep their renderer's own fog as in 1.0.4.
+# Backported Clouds
 
-Compatible with Embeddium (its cloud renderer draws the clouds; the mod sizes its mesh, swaps in a cloud shader of its own for the fade and sets the cloud fog), Oculus (with a shader pack the pack's own cloud program draws the clouds, so the distance is capped to its view range and the fade stands down) and Distant Horizons (the clouds are hidden behind nearer LODs, DH no longer switches the Clouds setting off, and the game's own render target is bound before the clouds, which DH's passes left unbound, so the clouds show at all with DH). Not tested with other performance mods.
+Clouds from newer Minecraft, on Forge 1.20.1: the cloud texture of 1.21.11, clouds out to 128 chunks, and the fade
+toward the horizon that 1.21.6 and later draw. Client only; servers don't need it, and it joins any server.
 
-For other mods: `net.camacraft.backportedclouds.CloudFade.style()` says which fade the cloud pass is drawn with (1: this mod's, 0: the renderer's own), so a mod that swaps the cloud shader for a copy of its own can fade the same way; the standard fog uniforms carry the distance (start 0, end the cloud fog distance). Camafy's storm clouds do this.
+**Requires:** Minecraft 1.20.1, Forge 47.3.10+. **Optional:** Embeddium, Oculus, Distant Horizons, The Aether, VS Genesis
+(each one below). MIT licence.
 
-With VS Genesis the clouds carry on onto the planet below (1.0.7, "Clouds on the VS Genesis planet" and "Clouds fade into the VS Genesis planet", both on). From a third of the world's height up Genesis draws the planet you stand on as a textured cube below the camera; its texture has no clouds, and the world's cloud layer, 192 blocks up and seen through the planet's outline, shrank against the planet as you rose (it recedes at your speed, the planet at a sixteenth of it). Now the planet carries a cloud layer of its own (`PlanetCloudShell`: a shell a hair above the cube in the same texture, lit by Genesis' own sun direction, drifting as the world's clouds do), fixed to the planet so it never changes size against its continents, its texel sized so it looks as big as the world's cloud cell at the height where the two hand over (61 texels across a face at 8 chunks; "Cloud texels across a VS Genesis planet face", 0 = that). The world's clouds hand over to it in a short band around that height (`PlanetBelow.handover`, the planet's fade-in 0.35 to 0.65). For other mods' copies of the cloud shaders: `net.camacraft.backportedclouds.PlanetBelow.current()` gives this frame's planet (its centre from the camera, half extent, and the handover, 0 to 1), and the GLSL `planet_below_fade` in `clouds.fsh` is the fade to copy. Nothing without Genesis, and not under a shader pack.
+## What it does
 
-From afar, in space or in another world's sky, Earth and worlds made like it (Multiworld's overworlds) wear the whole cloud texture (1.0.8, "Clouds on VS Genesis planets from afar", on, with "Cloud shadows on VS Genesis planets"), baked to square cells on the planet's cube and thinning out before the poles. No other planet has clouds. Space Events shows the world's storms in them, white and thicker than the clouds round them, as storms are from space.
+- **The 1.21.11 cloud texture.** It sits at vanilla's own path and also at `backportedclouds:textures/environment/clouds.png`.
+  Where vanilla's old texture would win the resource pack order (a pack whose `options.txt` lists `vanilla` without
+  `mod_resources`), the clouds still take this mod's copy; a resource pack of your own on top keeps its clouds.
+- **Far clouds.** Clouds render out to the cloud render distance (128 chunks by default), and the far plane reaches that
+  far, so they aren't cut off.
+- **The fade toward the horizon** (1.0.5). Each cloud's opacity falls with its distance from you, from full overhead to
+  nothing at the cloud render distance, with no tint toward the fog colour, as 1.21.6 and later draw it. In water, lava,
+  powder snow, blindness, darkness, a foggy biome or a boss's fog, the short fog of those places stands and the clouds
+  fade out within it, as vanilla's do.
+- **Clouds that drift in sync** for everyone on a server, as in newer Minecraft, and stay aligned far from spawn.
 
-With Distant Horizons its own clouds over the LODs take the same cloud texture (1.0.7, "Distant Horizons clouds use the cloud texture", on): DH builds them from a 64 by 64 map it ships in its jar and reads with the class loader, so neither this mod's texture nor a resource pack reached them. The map is now made from `minecraft:textures/environment/clouds.png` as the resource manager has it, a cell (128 blocks of DH's clouds) being a cloud where enough of its 4 by 4 pixels are: as many as keeps the share of the texture's cloud DH's own map keeps of the old texture (two thirds; 10 of 16 pixels for the 1.21.11 texture). DH builds its clouds when a world loads.
+## Compatibility
 
-The texture is also carried at `backportedclouds:textures/environment/clouds.png` (1.0.7, "Use this mod's cloud texture over vanilla's", on): it sits at vanilla's path too, which wins only while the mods' resources are above vanilla's in the pack order, and in a pack whose `options.txt` lists `vanilla` without `mod_resources` vanilla's old texture was on top and every cloud renderer read it. Where vanilla's own file is on top the clouds take this mod's copy; any other pack on top (a resource pack) keeps its clouds. The vanilla cloud path, Embeddium's cloud shapes and Distant Horizons' clouds all read the choice (`CloudTexture`), worked out again after each resource reload.
+- **Embeddium:** its cloud renderer draws the clouds; this mod sizes its mesh to the distance and gives it the fade.
+- **Oculus:** with a shader pack the pack's own cloud program draws the clouds. The distance is capped to the view range
+  Oculus uses and the fade stands down; packs that hide or replace clouds still decide what you see.
+- **Distant Horizons:** clouds are hidden behind nearer LOD terrain and drawn in front of farther LODs; Distant Horizons
+  no longer switches the Clouds setting off; and its own clouds over the LODs are made from this mod's cloud texture
+  (1.0.7). Distant Horizons builds those when a world loads.
+- **The Aether:** its clouds render out to the configured distance; its "disable clouds" option is still respected.
+- **VS Genesis:**
+  - Clouds stay in view above y 500, where Genesis would hide them all at once (1.0.3).
+  - From high up, the planet you see below you carries a cloud layer of its own, and the world's clouds hand over to it
+    in a short band as you rise (1.0.7). Only on planets of the overworld's kind, never over the Moon or Mars (1.0.8).
+  - From space or another world's sky, Earth and worlds like it (Multiworld's overworlds) wear the whole cloud texture,
+    thinning out before the poles and casting shadows on the day side (1.0.8). With Space Events, storms show in them as
+    bright white patches.
+- Not tested with other performance mods.
+
+## Config
+
+`config/backportedclouds-client.toml`, client side. Every option is on by default unless a value is shown.
+
+| Option | Default | What it does |
+| --- | --- | --- |
+| Cloud render distance | `128` | How far clouds render, in chunks (2 to 128). |
+| Fade toward the horizon | on | The 1.21.6+ fade. Off: clouds keep their renderer's own fog, as before 1.0.5. |
+| Extend frustum | on | The far plane reaches the clouds, so distant ones aren't clipped. |
+| Cloud distance multiplier | `4.0` | Only with the fade off: how much further than the render distance the fog end and far plane go (1 to 16). |
+| Use this mod's cloud texture over vanilla's | on | Take this mod's texture where vanilla's old one would be on top of the pack order. |
+| Extend clouds with shader packs | on | Apply the cloud distance under an Oculus shader pack (capped to Oculus' view range). |
+| Hide clouds behind Distant Horizons LODs | on | Clouds behind nearer LOD terrain, in front of farther LODs. |
+| Keep the Clouds setting with Distant Horizons | on | Stop Distant Horizons switching the Clouds video setting off. Set Clouds back to Fancy or Fast once; it stays. |
+| Distant Horizons clouds use the cloud texture | on | Distant Horizons' own clouds over the LODs take this mod's texture. |
+| Keep clouds above the VS Genesis ceiling | on | Clouds stay in view above y 500 with VS Genesis. |
+| Clouds on the VS Genesis planet | on | A cloud layer on the planet below you from high up. |
+| Clouds fade into the VS Genesis planet | on | The world's clouds hand over to that layer as you rise. |
+| Cloud texels across a VS Genesis planet face | `0` | The planet layer's resolution; 0 sizes it to match the world's clouds at the handover height. |
+| Clouds on VS Genesis planets from afar | on | Earth-like planets wear the cloud texture from space. |
+| Cloud shadows on VS Genesis planets | on | Those clouds cast shadows on the day side. |
+
+## For mod developers
+
+- `net.camacraft.backportedclouds.CloudFade.style()` says which fade the cloud pass is drawn with (1: this mod's, 0: the
+  renderer's own). A mod that swaps the cloud shader for a copy of its own can fade the same way; the standard fog
+  uniforms carry the distance (start 0, end the cloud fog distance). Camafy's storm clouds do this.
+- `net.camacraft.backportedclouds.PlanetBelow.current()` gives this frame's VS Genesis planet below (its centre from the
+  camera, half extent, and the handover, 0 to 1); the GLSL function `planet_below_fade` in `clouds.fsh` is the fade to copy.
+
+See `CHANGELOG.md` for the history of each version.
