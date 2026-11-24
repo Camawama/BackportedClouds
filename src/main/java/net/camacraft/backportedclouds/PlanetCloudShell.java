@@ -62,6 +62,8 @@ public final class PlanetCloudShell {
     private static final float OPACITY = 0.85F;
     /** The light a cloud keeps on the night side: the planet's own ambient tenth would make white clouds the brightest thing there. */
     private static final float NIGHT_LIGHT = 0.035F;
+    /** Genesis' planet shader's ambient light, which also decides how much of the sky's colour it lays over the ground. */
+    private static final float GENESIS_AMBIENT = 0.1F;
     /** The wrap's shell against the cube (a planet seen from afar), and the shadows' just over the ground under it. */
     private static final float WRAP_SHELL = 1.012F, SHADOW_SHELL = 1.002F;
     /** How dark a cloud's shadow is at its darkest, and how far it lies from the cloud, in half sizes of a face, with the sun low. */
@@ -112,8 +114,9 @@ public final class PlanetCloudShell {
     /**
      * Right after Genesis has drawn a body that isn't the one under the camera, seen from space or from another world's
      * sky: on a planet of the overworld's kind ({@link PlanetBelow#bodyIsOverworldKind}), the whole cloud texture
-     * ({@link PlanetCloudWrap}), lit as Genesis lights the planet, with the clouds' shadows on the ground under it. Drawn
-     * before Genesis' glow, which lies over it.
+     * ({@link PlanetCloudWrap}), lit as Genesis lights the planet (with the sky's colour over its night side, seen from a
+     * world's sky: {@link #colourAt}), with the clouds' shadows on the ground under it. Drawn before Genesis' glow, which
+     * lies over it.
      */
     public static void afterBody(ResourceLocation id, PoseStack pose, double x, double y, double z, double halfExtent, Object rotation, float alpha) {
         try {
@@ -136,6 +139,7 @@ public final class PlanetCloudShell {
         // how thick each cloud is, is in the cells' alpha
         float alpha = Mth.clamp(bodyAlpha, 0F, 1F);
         float[] light = lightDirection();
+        float[] sky = skyColour();
         Quaternionf q = new Quaternionf(turn);
         Matrix4f m = new Matrix4f(pose.last().pose()).translate((float) x, (float) y, (float) z).rotate(q);
         Vector3d centre = new Vector3d(x, y, z);
@@ -154,6 +158,7 @@ public final class PlanetCloudShell {
         BufferBuilder buffer = Tesselator.getInstance().getBuilder();
         buffer.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX_COLOR);
         Vector3f n = new Vector3f(), a = new Vector3f(), b = new Vector3f(), p = new Vector3f(), dir = new Vector3f();
+        float[] rgb = new float[3];
         int faces = 0;
         float h = (float) (halfExtent * WRAP_SHELL), low = (float) (halfExtent * SHADOW_SHELL);
         for (int f = 0; f < FACES.length; f++) {
@@ -178,15 +183,15 @@ public final class PlanetCloudShell {
                             float size = shadow ? low : h;
                             float u = PlanetCloudWrap.atlasU(f, shadow ? Mth.clamp(c[0] + shiftA, -1F, 1F) : c[0]);
                             float v = PlanetCloudWrap.atlasV(f, shadow ? Mth.clamp(c[1] + shiftB, -1F, 1F) : c[1]);
-                            float grey, opacity = alpha;
+                            float opacity = alpha;
                             if (shadow) {
                                 dir.set(p).normalize();
-                                grey = 0F;
+                                rgb[0] = rgb[1] = rgb[2] = 0F;
                                 opacity = alpha * SHADOW_DARK * Mth.clamp(dir.dot(sun) * 4F, 0F, 1F);
                             } else {
-                                grey = shadeAt(q, light, p, dir);
+                                colourAt(q, light, sky, p, dir, rgb);
                             }
-                            buffer.vertex(m, p.x * size, p.y * size, p.z * size).uv(u, v).color(grey, grey, grey, opacity).endVertex();
+                            buffer.vertex(m, p.x * size, p.y * size, p.z * size).uv(u, v).color(rgb[0], rgb[1], rgb[2], opacity).endVertex();
                         }
                     }
                 }
@@ -200,7 +205,8 @@ public final class PlanetCloudShell {
         RenderSystem.defaultBlendFunc();
         RenderSystem.disableBlend();
         wrapDraws++;
-        lastWrap = String.format(java.util.Locale.ROOT, "%s, %d faces, alpha %.2f, shadows %s, %s", id, faces, alpha, shadows, PlanetCloudWrap.describe());
+        lastWrap = String.format(java.util.Locale.ROOT, "%s, %d faces, alpha %.2f, shadows %s, sky %s, %s", id, faces, alpha, shadows,
+                sky == null ? "none" : String.format(java.util.Locale.ROOT, "%.2f %.2f %.2f", sky[0], sky[1], sky[2]), PlanetCloudWrap.describe());
     }
 
     private static void draw(Minecraft mc, PoseStack pose, double x, double y, double z, double halfExtent, Quaterniondc turn, float planetAlpha) {
@@ -212,6 +218,7 @@ public final class PlanetCloudShell {
         float alpha = Mth.clamp(OPACITY * PlanetBelow.handover(planetAlpha), 0F, 1F);
         if (alpha <= 0.004F) return;
         float[] light = lightDirection();
+        float[] sky = skyColour();
         float handover = PlanetBelow.handover(planetAlpha);
         // the world point the pattern is lined up with: the camera's while the world's clouds hand over, then left where it is
         net.minecraft.world.phys.Vec3 cam = mc.gameRenderer.getMainCamera().getPosition();
@@ -257,6 +264,7 @@ public final class PlanetCloudShell {
         BufferBuilder buffer = Tesselator.getInstance().getBuilder();
         buffer.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX_COLOR);
         Vector3f n = new Vector3f(), a = new Vector3f(), b = new Vector3f(), p = new Vector3f(), dir = new Vector3f();
+        float[] rgb = new float[3];
         int faces = 0;
         for (int f = 0; f < FACES.length; f++) {
             n.set(FACES[f][0][0], FACES[f][0][1], FACES[f][0][2]);
@@ -287,7 +295,7 @@ public final class PlanetCloudShell {
                             u = u0 + (c[0] + 1F) * 0.5F * span;
                             v = v0 + (c[1] + 1F) * 0.5F * span;
                         }
-                        corner(buffer, m, q, light, p, dir, h, u, v, alpha);
+                        corner(buffer, m, q, light, sky, p, dir, rgb, h, u, v, alpha);
                     }
                 }
             }
@@ -300,7 +308,8 @@ public final class PlanetCloudShell {
         RenderSystem.defaultBlendFunc();
         RenderSystem.disableBlend();
         draws++;
-        lastDraw = String.format(java.util.Locale.ROOT, "%d faces, alpha %.2f, %d texels a face, lit %s", faces, alpha, texels, light != null);
+        lastDraw = String.format(java.util.Locale.ROOT, "%d faces, alpha %.2f, %d texels a face, lit %s, sky %s", faces, alpha, texels, light != null,
+                sky == null ? "none" : String.format(java.util.Locale.ROOT, "%.2f %.2f %.2f", sky[0], sky[1], sky[2]));
     }
 
     /**
@@ -325,26 +334,57 @@ public final class PlanetCloudShell {
         return Mth.clamp((int) Math.round(2.0 * halfExtent * SHELL / texel), 8, 256);
     }
 
-    /** One corner {@code p} of a face (on the unit cube): placed on the shell, its texel, and its light as Genesis lights the planet there. */
-    private static void corner(BufferBuilder buffer, Matrix4f m, Quaternionf q, float[] light, Vector3f p, Vector3f dir, float h,
-                               float u, float v, float alpha) {
-        float shade = shadeAt(q, light, p, dir);
+    /** One corner {@code p} of a face (on the unit cube): placed on the shell, its texel, and its colour as Genesis colours the planet there. */
+    private static void corner(BufferBuilder buffer, Matrix4f m, Quaternionf q, float[] light, float[] sky, Vector3f p, Vector3f dir, float[] rgb,
+                               float h, float u, float v, float alpha) {
+        colourAt(q, light, sky, p, dir, rgb);
         buffer.vertex(m, p.x * h, p.y * h, p.z * h)
                 .uv(u, v)
-                .color(shade, shade, shade, alpha)
+                .color(rgb[0], rgb[1], rgb[2], alpha)
                 .endVertex();
     }
 
-    /** Genesis' planet shader's light at the point {@code p} of the cube: the normal of a sphere through it, lit by dot(n, -light), eased; a cloud's own night light for the planet's ambient tenth. */
-    private static float shadeAt(Quaternionf q, float[] light, Vector3f p, Vector3f dir) {
-        if (light == null) return 1F;
+    /**
+     * A white cloud's colour at the point {@code p} of the cube, as Genesis' planet shader colours the ground there: lit by
+     * dot(n, -light) through the normal of a sphere, eased, with a cloud's own night light for the planet's ambient tenth;
+     * and, seen from a world's sky, the sky's colour where that light falls short ({@code SkyColor * (1 - lighting)}, with
+     * Genesis' own lighting), so a body's night side in a day sky is the sky's colour under its clouds as well as under
+     * its ground (1.0.9). Without it the clouds there were nearly black over a sky-blue planet. In space and on the planet
+     * below Genesis sends no sky colour, and nothing changes.
+     */
+    private static void colourAt(Quaternionf q, float[] light, float[] sky, Vector3f p, Vector3f dir, float[] rgb) {
+        if (light == null) {
+            rgb[0] = rgb[1] = rgb[2] = 1F;
+            return;
+        }
         q.transform(dir.set(p).normalize());
         float lit = Math.max(0F, -(dir.x * light[0] + dir.y * light[1] + dir.z * light[2]));
-        return Mth.clamp(NIGHT_LIGHT + 1F - 1F / (lit * lit * 5F + 1F), 0F, 1F);
+        float eased = 1F - 1F / (lit * lit * 5F + 1F);
+        float shade = Mth.clamp(NIGHT_LIGHT + eased, 0F, 1F);
+        float skyShare = sky == null ? 0F : 1F - Mth.clamp(GENESIS_AMBIENT + eased, 0F, 1F);
+        for (int c = 0; c < 3; c++) rgb[c] = Mth.clamp(shade + (sky == null ? 0F : sky[c] * skyShare), 0F, 1F);
     }
 
     /** Genesis' planet shader's light direction this frame (from the star to the body, in the axes the body is drawn in), or null. */
     private static float[] lightDirection() {
+        float[] l = uniform("LightDirection");
+        if (l == null) return null;
+        float len = Mth.sqrt(l[0] * l[0] + l[1] * l[1] + l[2] * l[2]);
+        return len < 1e-6F ? null : new float[]{l[0] / len, l[1] / len, l[2] / len};
+    }
+
+    /**
+     * The sky colour Genesis' planet shader lays over the body it has just drawn where the sun's light falls short: the
+     * world's sky colour for a body seen from a world's sky; null in space and for the planet below, where it sends none.
+     */
+    private static float[] skyColour() {
+        float[] c = uniform("SkyColor");
+        if (c == null || c[0] + c[1] + c[2] <= 1e-4F) return null;
+        return new float[]{Mth.clamp(c[0], 0F, 1F), Mth.clamp(c[1], 0F, 1F), Mth.clamp(c[2], 0F, 1F)};
+    }
+
+    /** A three-float uniform of Genesis' planet shader as it was set for the body just drawn, or null. */
+    private static float[] uniform(String name) {
         if (!shaderLooked) {
             shaderLooked = true;
             try {
@@ -359,12 +399,10 @@ public final class PlanetCloudShell {
         try {
             Object shader = ((java.util.function.Supplier<?>) shaderSupplier.invoke()).get();
             if (!(shader instanceof ShaderInstance instance)) return null;
-            com.mojang.blaze3d.shaders.Uniform u = instance.getUniform("LightDirection");
+            com.mojang.blaze3d.shaders.Uniform u = instance.getUniform(name);
             if (u == null) return null;
             FloatBuffer fb = u.getFloatBuffer();
-            float lx = fb.get(0), ly = fb.get(1), lz = fb.get(2);
-            float len = Mth.sqrt(lx * lx + ly * ly + lz * lz);
-            return len < 1e-6F ? null : new float[]{lx / len, ly / len, lz / len};
+            return new float[]{fb.get(0), fb.get(1), fb.get(2)};
         } catch (Throwable t) {
             return null;
         }

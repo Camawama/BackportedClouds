@@ -34,7 +34,8 @@ toward the horizon that 1.21.6 and later draw. Client only; servers don't need i
     in a short band as you rise (1.0.7). Only on planets of the overworld's kind, never over the Moon or Mars (1.0.8).
   - From space or another world's sky, Earth and worlds like it (Multiworld's overworlds) wear the whole cloud texture,
     thinning out before the poles and casting shadows on the day side (1.0.8). With Space Events, storms show in them as
-    bright white patches.
+    bright white patches. Seen in a day sky, a planet's night side takes the sky's colour under its clouds as well as
+    under its ground, never black clouds (1.0.9).
 - Not tested with other performance mods.
 
 ## Config
